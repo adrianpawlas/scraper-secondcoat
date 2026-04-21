@@ -1,0 +1,64 @@
+name: Second Coat Scraper
+
+on:
+  schedule:
+    # Every Wednesday at 3:00 PM UTC
+    - cron: '0 15 * * 3'
+  workflow_dispatch:
+    inputs:
+      force_run:
+        description: 'Force run even if no changes'
+        required: false
+        type: boolean
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install transformers torch pillow
+      
+      - name: Run scraper
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SOURCE: scraper-secondcoat
+          BRAND: 'Second Coat'
+        run: |
+          python main.py
+      
+      - name: Verify upload
+        if: success()
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          python -c "
+          import requests
+          resp = requests.get(
+              '${{ secrets.SUPABASE_URL }}/rest/v1/products?source=eq.scraper-secondcoat&select=id',
+              headers={'apikey': '${{ secrets.SUPABASE_ANON_KEY }}', 'Authorization': 'Bearer ${{ secrets.SUPABASE_ANON_KEY }}'}
+          )
+          print(f'Products in database: {len(resp.json())}')
+          "
+      
+      - name: Upload artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scraper-logs
+          path: scraper.log
+          retention-days: 7

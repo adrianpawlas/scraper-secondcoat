@@ -1,0 +1,10 @@
+aiohttp
+beautifulsoup4
+lxml
+requests
+torch
+transformers
+pillow
+numpy
+supabase
+python-dotenv
