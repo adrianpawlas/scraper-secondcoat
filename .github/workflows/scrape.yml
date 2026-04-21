@@ -29,16 +29,16 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-          pip install transformers torch pillow
+          pip install transformers torch pillow aiohttp beautifulsoup4 lxml
       
-      - name: Run scraper
+      - name: Run scraper (smart mode)
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           SOURCE: scraper-secondcoat
           BRAND: 'Second Coat'
         run: |
-          python main.py
+          python main.py ${{ secrets.SUPABASE_ANON_KEY }}
       
       - name: Verify upload
         if: success()
@@ -49,10 +49,13 @@ jobs:
           python -c "
           import requests
           resp = requests.get(
-              '${{ secrets.SUPABASE_URL }}/rest/v1/products?source=eq.scraper-secondcoat&select=id',
+              '${{ secrets.SUPABASE_URL }}/rest/v1/products?source=eq.scraper-secondcoat&select=id,title',
               headers={'apikey': '${{ secrets.SUPABASE_ANON_KEY }}', 'Authorization': 'Bearer ${{ secrets.SUPABASE_ANON_KEY }}'}
           )
-          print(f'Products in database: {len(resp.json())}')
+          products = resp.json()
+          print(f'Products in database: {len(products)}')
+          for p in products:
+              print(f'  - {p.get(\"title\", \"?\")[:45]}')
           "
       
       - name: Upload artifacts on failure
@@ -60,5 +63,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: scraper-logs
-          path: scraper.log
+          path: |
+            scraper.log
+            failed_products.log
           retention-days: 7

@@ -5,7 +5,15 @@ import aiohttp
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 from typing import Optional
-from config import BASE_URL, CATEGORIES
+
+BASE_URL = "https://2ndc.ca"
+
+CATEGORIES = {
+    "tops": "https://2ndc.ca/collections/tops",
+    "bottoms": "https://2ndc.ca/collections/bottoms",
+    "accessories": "https://2ndc.ca/collections/accessories",
+}
+
 
 class SecondCoatScraper:
     def __init__(self):
