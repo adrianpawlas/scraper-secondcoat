@@ -172,8 +172,13 @@ def compare_product_data(scraped: Dict, existing: Dict) -> Tuple[bool, List[str]
     ]
     
     for scraped_key, existing_key in fields_to_check:
-        scraped_val = scraped.get(scraped_key, '')
-        existing_val = existing.get(existing_key, '')
+        scraped_val = scraped.get(scraped_key, '') or ''
+        existing_val = existing.get(existing_key, '') or ''
+        
+        # Normalize URL for comparison
+        if scraped_key == 'image_url':
+            scraped_val = scraped_val.replace('http://', 'https://').split('?')[0]
+            existing_val = existing_val.replace('http://', 'https://').split('?')[0]
         
         if str(scraped_val) != str(existing_val):
             changed.append(scraped_key)
@@ -191,10 +196,14 @@ def needs_embedding_regeneration(scraped: Dict, existing: Dict) -> bool:
     if not existing:
         return True
     
-    scraped_url = scraped.get('image_url', '')
-    existing_url = existing.get('image_url', '')
+    scraped_url = scraped.get('image_url', '') or ''
+    existing_url = existing.get('image_url', '') or ''
     
-    return scraped_url != existing_url
+    # Normalize URLs for comparison
+    scraped_norm = scraped_url.replace('http://', 'https://').split('?')[0]
+    existing_norm = existing_url.replace('http://', 'https://').split('?')[0]
+    
+    return scraped_norm != existing_norm
 
 
 def generate_embeddings_staggered(products: List[Dict], existing: Dict) -> List[Dict]:
@@ -302,7 +311,7 @@ def insert_products_batch(products: List[Dict], existing: Dict) -> Tuple[int, in
                 unchanged_count += 1
                 continue
             
-            # Update via PATCH - only include fields that exist
+            # Update via PATCH - include all fields
             update_record = {}
             if product.get('title'):
                 update_record['title'] = product.get('title')
@@ -310,8 +319,13 @@ def insert_products_batch(products: List[Dict], existing: Dict) -> Tuple[int, in
                 update_record['description'] = product.get('description')
             if product.get('price'):
                 update_record['price'] = product.get('price')
+                update_record['sale'] = product.get('price')
             if product.get('category'):
                 update_record['category'] = product.get('category')
+            if product.get('metadata'):
+                update_record['metadata'] = product.get('metadata')
+            if product.get('sizes'):
+                update_record['size'] = product.get('sizes')
             
             resp = requests.patch(
                 f"{SUPABASE_URL}/rest/v1/products?id=eq.{existing_product.get('id')}",
@@ -338,6 +352,10 @@ def insert_products_batch(products: List[Dict], existing: Dict) -> Tuple[int, in
                 'category': product.get('category'),
                 'gender': 'unisex',
                 'second_hand': False,
+                'price': product.get('price', ''),
+                'sale': product.get('price', ''),
+                'metadata': product.get('metadata'),
+                'size': product.get('sizes', ''),
                 'image_embedding': product.get('image_embedding', []),
                 'info_embedding': product.get('info_embedding', []),
             }
@@ -470,6 +488,7 @@ async def run_scraper():
         stats.new_added = new_count
         stats.products_updated = update_count
         stats.products_unchanged = unchanged_count
+        stats.embeddings_generated = new_count + update_count
         stats.embeddings_generated = new_count + update_count
         
         # 6. Update timestamps
